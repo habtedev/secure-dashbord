@@ -133,6 +133,7 @@ dist
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+docker-compose.yml
 
 # Vite logs files
 vite.config.js.timestamp-*
