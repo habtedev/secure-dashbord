@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import prisma from '../config/db'
 import { validateUser } from '../utils/validator'
+import { sendVerificationEmail } from './gmailVerifing'
 
 // JWT secret from env
 const JWT_SECRET = process.env.JWT_SECRET ?? ''
@@ -21,30 +22,75 @@ const generateRefreshToken = (userId: number) =>
 // Register new user
 export const register = async (req: Request, res: Response) => {
   try {
+    // Debug: log incoming request body
+    console.log('Register request body:', req.body)
+    // Debug: log prisma.user
+    console.log('prisma.user:', prisma.user)
     // Validate request body
     const result = validateUser(req.body)
     if (!result.success) {
-      return res.status(400).json({ message: result.error.issues[0].message })
+      console.error('Validation error:', result.error)
+      return res.status(400).json({
+        message: result.error.issues[0].message,
+        details: result.error,
+      })
     }
     const { email, password, name } = result.data
-    const existingUser = await prisma.auth.findUnique({ where: { email } })
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' })
+    try {
+      const existingUser = await prisma.user.findUnique({ where: { email } })
+      if (existingUser) {
+        return res.status(400).json({ message: 'User already exists' })
+      }
+    } catch (prismaFindErr) {
+      console.error('Prisma error on findUnique:', prismaFindErr)
+      return res
+        .status(500)
+        .json({ message: 'Database error (findUnique)', error: prismaFindErr })
     }
-    const salt = await bcrypt.genSalt(10)
-    const hashedPassword = await bcrypt.hash(password, salt)
+    let hashedPassword = ''
+    try {
+      const salt = await bcrypt.genSalt(10)
+      hashedPassword = await bcrypt.hash(password, salt)
+    } catch (bcryptErr) {
+      console.error('Bcrypt error:', bcryptErr)
+      return res
+        .status(500)
+        .json({ message: 'Password hashing failed', error: bcryptErr })
+    }
     // Role-based check for admin registration
     let role = 'user'
     if (name === 'HabteDev' && password === 'Pa$$w0rd') {
       role = 'admin'
     }
-    const user = await prisma.auth.create({
-      data: { email, password: hashedPassword, name, role },
-    })
-    return res.status(201).json({ user })
+    try {
+      const user = await prisma.user.create({
+        data: { email, password: hashedPassword, name, role },
+      })
+      // Send Gmail verification email after registration
+      try {
+        // Fake req/res for internal call
+        await sendVerificationEmail(
+          { body: { email } } as any,
+          { json: () => {}, status: () => ({ json: () => {} }) } as any,
+        )
+      } catch (emailErr) {
+        console.error(
+          'Failed to send verification email after register:',
+          emailErr,
+        )
+      }
+      return res.status(201).json({ user })
+    } catch (prismaCreateErr) {
+      console.error('Prisma error on create:', prismaCreateErr)
+      return res
+        .status(500)
+        .json({ message: 'Database error (create)', error: prismaCreateErr })
+    }
   } catch (err) {
-    console.error('Error in register:', err)
-    return res.status(500).json({ message: 'Registration failed', error: err })
+    console.error('Error in register (outer catch):', err)
+    return res
+      .status(500)
+      .json({ message: 'Registration failed (outer catch)', error: err })
   }
 }
 
@@ -52,10 +98,18 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body
-    const user = await prisma.auth.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({ where: { email } })
 
     if (!user) {
       return res.status(400).json({ message: 'User not found' })
+    }
+
+    if (!user.isVerified) {
+      // Block login for unverified users
+      return res.status(403).json({
+        message: 'Your email is not verified. Please check your inbox.',
+        redirect: '/gmail-verifying?email=' + encodeURIComponent(email),
+      })
     }
 
     const valid = await bcrypt.compare(password, user.password)
@@ -66,7 +120,7 @@ export const login = async (req: Request, res: Response) => {
     const accessToken = generateAccessToken(user.id)
     const refreshToken = generateRefreshToken(user.id)
 
-    await prisma.auth.update({
+    await prisma.user.update({
       where: { id: user.id },
       data: { refreshToken },
     })
@@ -101,7 +155,7 @@ export const refresh = async (req: Request, res: Response) => {
       return res.status(401).json({ message: 'Invalid refresh token' })
     }
 
-    const user = await prisma.auth.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: payload.userId },
     })
 
@@ -111,7 +165,7 @@ export const refresh = async (req: Request, res: Response) => {
 
     const newRefreshToken = generateRefreshToken(user.id)
 
-    await prisma.auth.update({
+    await prisma.user.update({
       where: { id: user.id },
       data: { refreshToken: newRefreshToken },
     })
@@ -140,7 +194,7 @@ export const logout = async (req: Request, res: Response) => {
       // Optionally remove refresh token from DB for extra security
       try {
         const payload: any = jwt.verify(token, JWT_SECRET)
-        await prisma.auth.update({
+        await prisma.user.update({
           where: { id: payload.userId },
           data: { refreshToken: null },
         })

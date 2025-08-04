@@ -2,9 +2,11 @@ import request from 'supertest'
 import app from '../../../src/app'
 
 describe('Auth Integration', () => {
+  // Register a unique user for each test to avoid duplication issues
   it('should register a new user', async () => {
+    const uniqueEmail = `test+${Date.now()}@example.com`
     const res = await request(app).post('/api/auth/register').send({
-      email: 'test@example.com',
+      email: uniqueEmail,
       password: 'Test1234!',
       name: 'Test User',
     })
@@ -13,55 +15,59 @@ describe('Auth Integration', () => {
   })
 
   it('should login with valid credentials', async () => {
+    const email = `login+${Date.now()}@example.com`
     await request(app).post('/api/auth/register').send({
-      email: 'login@example.com',
+      email,
       password: 'Login1234!',
       name: 'Login User',
     })
     const res = await request(app)
       .post('/api/auth/login')
-      .send({ email: 'login@example.com', password: 'Login1234!' })
+      .send({ email, password: 'Login1234!' })
     expect(res.statusCode).toBe(200)
     expect(res.body.accessToken).toBeDefined()
     expect(res.body.user).toBeDefined()
   })
 
   it('should request password reset', async () => {
+    const email = `reset+${Date.now()}@example.com`
     await request(app).post('/api/auth/register').send({
-      email: 'reset@example.com',
+      email,
       password: 'Reset1234!',
       name: 'Reset User',
     })
     const res = await request(app)
       .post('/api/password/request-reset')
-      .send({ email: 'reset@example.com' })
+      .send({ email })
     expect(res.statusCode).toBe(200)
     expect(res.body.message).toMatch(/Password reset link sent/)
   })
 
   it('should resend password reset link', async () => {
+    const email = `resend+${Date.now()}@example.com`
     await request(app).post('/api/auth/register').send({
-      email: 'resend@example.com',
+      email,
       password: 'Resend1234!',
       name: 'Resend User',
     })
     const res = await request(app)
       .post('/api/password/resend-reset')
-      .send({ email: 'resend@example.com' })
+      .send({ email })
     expect(res.statusCode).toBe(200)
     expect(res.body.message).toMatch(/Password reset link resent/)
   })
 
   it('should send verification email', async () => {
+    const email = `verify+${Date.now()}@example.com`
     await request(app).post('/api/auth/register').send({
-      email: 'verify@example.com',
+      email,
       password: 'Verify1234!',
       name: 'Verify User',
     })
     const res = await request(app)
       .post('/api/email/send-verification')
-      .send({ email: 'verify@example.com' })
+      .send({ email })
     expect(res.statusCode).toBe(200)
     expect(res.body.message).toMatch(/Verification email sent/)
   })
-}) 
+})

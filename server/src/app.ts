@@ -1,11 +1,19 @@
 import express from 'express'
 import cookieParser from 'cookie-parser'
+import cors from 'cors'
 import { register, login, refresh, logout } from './controllers/authcontroller'
 import resetPasswordRouter from './routes/resetPassword'
 import gmailVerifingRouter from './routes/gmailVerifing'
 
 const app = express()
 
+// Allow CORS for frontend dev
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    credentials: true,
+  }),
+)
 app.use(express.json())
 app.use(cookieParser())
 

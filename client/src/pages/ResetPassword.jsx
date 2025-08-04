@@ -1,9 +1,17 @@
 import React, { useState } from 'react'
+import axios from 'axios'
+
+// Ensure axios uses the backend server on port 8500
+axios.defaults.baseURL = 'http://localhost:8500'
+import { ToastContainer, toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 
 const ResetPassword = () => {
   const [submitted, setSubmitted] = useState(false)
   const [resendCount, setResendCount] = useState(1)
   const [cooldown, setCooldown] = useState(0)
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
   const resendLimit = 3
 
   React.useEffect(() => {
@@ -16,18 +24,48 @@ const ResetPassword = () => {
 
   const startCooldown = () => setCooldown(30)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setSubmitted(true)
-    setResendCount(1)
-    startCooldown()
+    if (!email) {
+      toast.error('Please enter your email address.')
+      return
+    }
+    setLoading(true)
+    try {
+      await axios.post('/api/password/request-reset', { email })
+      toast.success(
+        'If your email is registered, a reset link (valid for 30 minutes) has been sent.',
+      )
+      setSubmitted(true)
+      setResendCount(1)
+      startCooldown()
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message ||
+          'Failed to send reset link. Please try again.',
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (resendCount < resendLimit && cooldown === 0) {
-      setResendCount(resendCount + 1)
-      setSubmitted(true)
-      startCooldown()
+      setLoading(true)
+      try {
+        await axios.post('/api/password/request-reset', { email })
+        toast.success('Reset link resent! The link is valid for 30 minutes.')
+        setResendCount(resendCount + 1)
+        setSubmitted(true)
+        startCooldown()
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message ||
+            'Failed to resend link. Please try again.',
+        )
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -62,17 +100,18 @@ const ResetPassword = () => {
         </div>
         {submitted ? (
           <div className="text-green-600 text-center font-semibold py-4">
-            If your email is registered, a reset link has been sent.
+            If your email is registered, a reset link (valid for 30 minutes) has
+            been sent.
             <br />
             <button
               type="button"
               className={`mt-4 py-2 px-4 bg-blue-50 text-blue-700 font-semibold rounded-lg shadow hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400 transition ${
-                resendCount >= resendLimit || cooldown > 0
+                resendCount >= resendLimit || cooldown > 0 || loading
                   ? 'opacity-50 cursor-not-allowed'
                   : ''
               }`}
               onClick={handleResend}
-              disabled={resendCount >= resendLimit || cooldown > 0}
+              disabled={resendCount >= resendLimit || cooldown > 0 || loading}
             >
               {cooldown > 0
                 ? `Resend Link (${resendCount}/${resendLimit}) in ${cooldown}s`
@@ -107,16 +146,21 @@ const ResetPassword = () => {
                 placeholder="you@example.com"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                 required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
               />
             </div>
             <button
               type="submit"
               className="w-full py-2 px-4 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-400 transition duration-200 tracking-wide transform hover:scale-105 active:scale-95"
+              disabled={loading}
             >
-              Send Reset Link
+              {loading ? 'Sending...' : 'Send Reset Link'}
             </button>
           </form>
         )}
+        <ToastContainer position="top-right" autoClose={3000} />
       </div>
     </div>
   )

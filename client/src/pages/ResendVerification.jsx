@@ -1,9 +1,14 @@
 import React, { useState } from 'react'
+import axios from 'axios'
+import { ToastContainer, toast } from 'react-toastify'
+import 'react-toastify/dist/ReactToastify.css'
 
 const ResendVerification = () => {
   const [submitted, setSubmitted] = useState(false)
   const [cooldown, setCooldown] = useState(0)
   const [resendCount, setResendCount] = useState(1)
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
   const resendLimit = 3
 
   React.useEffect(() => {
@@ -16,18 +21,44 @@ const ResendVerification = () => {
 
   const startCooldown = () => setCooldown(30)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    setSubmitted(true)
-    setResendCount(1)
-    startCooldown()
+    if (!email) {
+      toast.error('Please enter your email address.')
+      return
+    }
+    setLoading(true)
+    try {
+      await axios.post('/api/auth/resend-verification', { email })
+      toast.success('Verification email sent!')
+      setSubmitted(true)
+      setResendCount(1)
+      startCooldown()
+    } catch (err) {
+      toast.error(
+        err.response?.data?.message || 'Failed to send verification email.',
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (resendCount < resendLimit && cooldown === 0) {
-      setResendCount(resendCount + 1)
-      setSubmitted(true)
-      startCooldown()
+      setLoading(true)
+      try {
+        await axios.post('/api/auth/resend-verification', { email })
+        toast.success('Verification email resent!')
+        setResendCount(resendCount + 1)
+        setSubmitted(true)
+        startCooldown()
+      } catch (err) {
+        toast.error(
+          err.response?.data?.message || 'Failed to resend verification email.',
+        )
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -74,13 +105,17 @@ const ResendVerification = () => {
               placeholder="you@example.com"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={loading}
             />
           </div>
           <button
             type="submit"
             className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+            disabled={loading}
           >
-            Resend Verification
+            {loading ? 'Sending...' : 'Resend Verification'}
           </button>
         </form>
         {submitted && (
@@ -92,15 +127,16 @@ const ResendVerification = () => {
         <button
           className="mt-4 w-full py-2 px-4 bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200 transition"
           onClick={handleResend}
-          disabled={cooldown > 0 || resendCount >= resendLimit}
+          disabled={cooldown > 0 || resendCount >= resendLimit || loading}
         >
-          Resend Again
+          {loading ? 'Sending...' : 'Resend Again'}
         </button>
         {resendCount >= resendLimit && (
           <div className="mt-2 text-red-500 text-center text-sm">
             Resend limit reached. Try again later.
           </div>
         )}
+        <ToastContainer position="top-right" autoClose={3000} />
       </div>
     </div>
   )
