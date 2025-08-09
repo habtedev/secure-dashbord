@@ -10,7 +10,7 @@ const app = express()
 // Allow CORS for frontend dev
 app.use(
   cors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'https://habtedashbord.vercel.app'],
     credentials: true,
   }),
 )
