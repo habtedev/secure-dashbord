@@ -5,8 +5,11 @@ import Register from './pages/Register.jsx'
 import ResetPassword from './pages/ResetPassword.jsx'
 import ResendVerification from './pages/ResendVerification.jsx'
 import NewPassword from './pages/NewPassword.jsx'
+
 import { ToastContainer } from 'react-toastify'
 import GmailVerifying from './pages/GmailVerifying.jsx'
+import UserDashboardPage from './pages/dashboard/user.jsx'
+import AdminDashboardPage from './pages/dashboard/admin.jsx'
 
 function App() {
   return (
@@ -20,6 +23,8 @@ function App() {
         <Route path="/new-password" element={<NewPassword />} />
         <Route path="/resend-verification" element={<ResendVerification />} />
         <Route path="/gmail-verifying" element={<GmailVerifying />} />
+        <Route path="/dashboard" element={<UserDashboardPage />} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
       </Routes>
     </BrowserRouter>
   )

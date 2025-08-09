@@ -25,7 +25,14 @@ const Login = () => {
       const res = await axios.post('/api/auth/login', form)
       toast.success('Login successful!')
       setForm({ email: '', password: '' })
-      // Optionally: redirect or set auth state here
+      // Store user in localStorage for session persistence
+      localStorage.setItem('user', JSON.stringify(res.data.user))
+      // Redirect based on role
+      if (res.data.user.role === 'admin') {
+        window.location.href = '/admin'
+      } else {
+        window.location.href = '/dashboard'
+      }
     } catch (err) {
       if (err.response?.status === 403 && err.response?.data?.redirect) {
         toast.error(err.response?.data?.message || 'Email not verified.')
